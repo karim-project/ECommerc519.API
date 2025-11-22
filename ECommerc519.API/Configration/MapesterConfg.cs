@@ -8,10 +8,15 @@ namespace ECommerc519.API.Configration
         public static void RegisterMapesterConfg(this IServiceCollection services) 
         {
 
-            //TypeAdapterConfig<ApplicationUser, ApplicationUserVM>
-            //            .NewConfig()
-            //            .Map(d => d.FullName, s => $"{s.FirstName} {s.LastName}")
-            //            .TwoWays();
+            TypeAdapterConfig<ApplicationUser, ApplicationUserResponse>
+                        .NewConfig()
+                        .Map(d => d.FullName, s => $"{s.FirstName} {s.LastName}")
+                        .TwoWays();
+
+            TypeAdapterConfig<ApplicationUser, UsersResponse>
+                        .NewConfig()
+                        .Map(d => d.FullName, s => $"{s.FirstName} {s.LastName}")
+                        .TwoWays();
         }
     }
 }
