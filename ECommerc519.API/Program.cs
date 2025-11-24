@@ -1,15 +1,19 @@
 using ECommerc519.API.Configration;
 using ECommerc519.API.DataAsecc;
+using ECommerc519.API.Services;
 using ECommerc519.API.Utitlies;
 using ECommerc519.API.Utitlies.DBInitilizer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Scalar;
 using Scalar.AspNetCore;
 using Stripe;
+using System.Globalization;
 using System.Text;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
@@ -66,6 +70,8 @@ namespace ECommerc519.API
             builder.Services.AddScoped<IRepository<Cart>, Repository<Cart>>();
             builder.Services.AddScoped<IRepository<Promotion>, Repository<Promotion>>();
 
+            builder.Services.AddTransient<ITokenService, Services.TokenService>();
+
             builder.Services.RegisterMapesterConfg();
             builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection("Stripe"));
             StripeConfiguration.ApiKey = builder.Configuration["Stripe:SecretKey"];
@@ -84,12 +90,27 @@ namespace ECommerc519.API
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = "https://localhost:7042",
-                    ValidAudience = "https://localhost:7042,https://localhost:4200",
+                    ValidAudience = "https://localhost:7042",
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("2BBFD56151D59D1A5713B18BCDE5F2BBFD56151D59D1A5713B18BCDE5F"))
                 };
             });
 
+            builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 
+            const string defaultCulture = "en";
+            var supportedCultures = new[]
+            {
+    new CultureInfo(defaultCulture),
+    new CultureInfo("es"),
+    new CultureInfo("ar"),
+    new CultureInfo("en")
+};
+            builder.Services.Configure<RequestLocalizationOptions>(options =>
+            {
+                options.DefaultRequestCulture = new RequestCulture(defaultCulture);
+                options.SupportedCultures = supportedCultures;
+                options.SupportedUICultures = supportedCultures;
+            });
 
             var app = builder.Build();
 
@@ -106,9 +127,10 @@ namespace ECommerc519.API
 
             app.UseHttpsRedirection();
 
-            app.UseAuthorization();
             app.UseAuthentication();
+            app.UseAuthorization();
 
+            app.UseRequestLocalization(app.Services.GetRequiredService<IOptions<RequestLocalizationOptions>>().Value);
 
             app.MapControllers();
 

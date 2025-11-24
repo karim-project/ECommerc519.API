@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using ECommerc519.API.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -20,13 +22,15 @@ namespace ECommerc519.API.Areas.Identity.Controllers
         private readonly IEmailSender _emailSender;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IRepository<ApplicationUserOTP> _applicationUserOTPrepositry;
+        private readonly ITokenService _tokenService;
 
-        public AccountController(UserManager<ApplicationUser> userManager, IEmailSender emailSender, SignInManager<ApplicationUser> signInManager, IRepository<ApplicationUserOTP> applicationUserOTPrepositry)
+        public AccountController(UserManager<ApplicationUser> userManager, IEmailSender emailSender, SignInManager<ApplicationUser> signInManager, IRepository<ApplicationUserOTP> applicationUserOTPrepositry, ITokenService tokenService)
         {
             _userManager = userManager;
             _emailSender = emailSender;
             _signInManager = signInManager;
             _applicationUserOTPrepositry = applicationUserOTPrepositry;
+            _tokenService = tokenService;
         }
 
 
@@ -148,28 +152,32 @@ namespace ECommerc519.API.Areas.Identity.Controllers
             var userRole = await _userManager.GetRolesAsync(user);
 
             var claims = new List<Claim>
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, user.UserName!),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email!),
-                new Claim(JwtRegisteredClaimNames.NameId, user.Id),
-                new Claim(JwtRegisteredClaimNames.Typ, String.Join(", ", userRole)),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-
+             {
+                  new Claim(ClaimTypes.Name, user.UserName!),
+                  new Claim(ClaimTypes.Email, user.Email!),
+                  new Claim(ClaimTypes.NameIdentifier, user.Id),
+                  new Claim(ClaimTypes.Role, String.Join( ", ",       userRole)),
+                  new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("2BBFD56151D59D1A5713B18BCDE5F2BBFD56151D59D1A5713B18BCDE5F"));
-            var signinCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+  
 
-            var token = new JwtSecurityToken(
-                issuer: "https://localhost:7042",
-                audience: "https://localhost:7042",
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(30),
-                signingCredentials: signinCredentials
-                );
+
+
+            var accessToken = _tokenService.GenerateAccessToken(claims);
+            var refreshToken = _tokenService.GenerateRefreshToken();
+
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+
+            await _userManager.UpdateAsync(user);
+
             return Ok(new
             {
-                token = new JwtSecurityTokenHandler().WriteToken(token)
+                AccessToken = accessToken,
+                ValidTo = "30 min",
+                RefreshToken = refreshToken,
+                RefreshTokenExpiration = "7 day"
             });
 
         }
@@ -301,6 +309,50 @@ namespace ECommerc519.API.Areas.Identity.Controllers
                 return BadRequest(result.Errors);
             }
             return Ok();
+        }
+
+        [HttpPost]
+        [Route("Refresh")]
+        public async Task<IActionResult> Refresh(TokenApiRequest tokenApiRequest)
+        {
+            if (tokenApiRequest is null || tokenApiRequest.RefreshToken is null || tokenApiRequest.AccessToken is null)
+                return BadRequest("Invalid client request");
+
+            string accessToken = tokenApiRequest.AccessToken;
+            string refreshToken = tokenApiRequest.RefreshToken;
+
+            var principal = _tokenService.GetPrincipalFromExpiredToken(accessToken);
+
+            var userName = principal.Identity.Name;
+            var user = _userManager.Users.FirstOrDefault(e => e.UserName == userName);
+
+            if (user is null || user.RefreshToken != refreshToken || user.RefreshTokenExpiryTime <= DateTime.Now)
+                return BadRequest("Invalid client request");
+
+            var newAccessToken = _tokenService.GenerateAccessToken(principal.Claims);
+            var newRefreshToken = _tokenService.GenerateRefreshToken();
+
+            user.RefreshToken = newRefreshToken;
+            await _userManager.UpdateAsync(user);
+
+            return Ok(new
+            {
+                AccessToken = newAccessToken,
+                ValidTo = "30 min",
+                RefreshToken = newRefreshToken,
+            });
+        }
+
+        [HttpPost, Authorize]
+        [Route("revoke")]
+        public async Task<IActionResult> Revoke()
+        {
+            var username = User.Identity.Name;
+            var user = _userManager.Users.FirstOrDefault(e => e.UserName == username);
+            if (user == null) return BadRequest();
+            user.RefreshToken = null;
+            await _userManager.UpdateAsync(user);
+            return NoContent();
         }
     }
 }

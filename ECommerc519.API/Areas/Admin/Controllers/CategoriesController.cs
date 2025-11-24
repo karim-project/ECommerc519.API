@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
 
 namespace ECommerc519.API.Areas.Admin.Controllers
 {
@@ -10,10 +11,12 @@ namespace ECommerc519.API.Areas.Admin.Controllers
     public class CategoriesController : ControllerBase
     {
         private readonly IRepository<Category> _categoryRepository;
+        private readonly IStringLocalizer<LocalizationController> _stringLocalizer;
 
-        public CategoriesController(IRepository<Category> categoryRepository)
+        public CategoriesController(IRepository<Category> categoryRepository , IStringLocalizer<LocalizationController> stringLocalizer)
         {
             _categoryRepository = categoryRepository;
+            _stringLocalizer = stringLocalizer;
         }
         [HttpGet]
         public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
@@ -33,7 +36,7 @@ namespace ECommerc519.API.Areas.Admin.Controllers
             return Ok(category);
         }
         [HttpPost]
-        [Authorize(Roles = $"{SD.Super_Admin_Role} ,{SD.Admin_Role}")]
+        [Authorize]
         public async Task<IActionResult> Create(Category category, CancellationToken cancellationToken)
         {
 
@@ -42,7 +45,7 @@ namespace ECommerc519.API.Areas.Admin.Controllers
 
             return CreatedAtAction(nameof(GetOne), new { id = category.Id }, new 
             {
-                success_notifaction = "Create Category Successfully"
+                success_notifaction = _stringLocalizer["AddCategry"].Value
             });
 
         }
