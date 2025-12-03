@@ -21,6 +21,8 @@ namespace ECommerc519.API.DataAsecc
         public DbSet<ApplicationUserOTP> ApplicationUserOTPs { get; set; }
         public DbSet<Cart> Carts { get; set; }
         public DbSet<Promotion> Promotions { get; set; }
+        public DbSet<Order> Orders { get; set; }
+        public DbSet<OrderItem> OrderItems { get; set; }
        
 
 

@@ -25,6 +25,24 @@ namespace ECommerc519.API
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            builder.Services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(
+                                  policy =>
+                                  {
+                                      policy.WithOrigins("http://127.0.0.1:5500").AllowAnyMethod().AllowAnyHeader().AllowCredentials();
+                                  });
+            });
+            //builder.Services.AddCors(options =>
+            //{
+            //    options.AddDefaultPolicy(
+            //                      policy =>
+            //                      {
+            //                          policy.AllowAnyOrigin().WithMethods("PUT", "DELETE", "GET").AllowAnyHreader();
+            //                      });
+
+            //});
+
             // Add services to the container.
 
             builder.Services.AddControllers();
@@ -57,6 +75,8 @@ namespace ECommerc519.API
                 options.AccessDeniedPath = "/Identity/Account/AccessDenied"; // Default access denied path
             });
 
+            builder.Services.AddSignalR();
+
             builder.Services.AddTransient<IEmailSender, EmailSender>();
 
             builder.Services.AddScoped<IDBInitilizer, DBInitilizer>();
@@ -69,6 +89,9 @@ namespace ECommerc519.API
             builder.Services.AddScoped<IRepository<ApplicationUserOTP>, Repository<ApplicationUserOTP>>();
             builder.Services.AddScoped<IRepository<Cart>, Repository<Cart>>();
             builder.Services.AddScoped<IRepository<Promotion>, Repository<Promotion>>();
+            builder.Services.AddScoped<IRepository<Order>, Repository<Order>>();
+            builder.Services.AddScoped<IRepository<OrderItem>, Repository<OrderItem>>();
+            builder.Services.AddScoped<IOrderItemRepository, OrderItemRepository>();
 
             builder.Services.AddTransient<ITokenService, Services.TokenService>();
 
@@ -127,8 +150,12 @@ namespace ECommerc519.API
 
             app.UseHttpsRedirection();
 
+            app.UseCors();
+
             app.UseAuthentication();
             app.UseAuthorization();
+
+            app.MapHub<ChatHub>("/chatHub");
 
             app.UseRequestLocalization(app.Services.GetRequiredService<IOptions<RequestLocalizationOptions>>().Value);
 
